@@ -1,3 +1,6 @@
+-- ALTER TABLE user ADD COLUMN name TEXT;
+-- ALTER TABLE user ADD COLUMN email TEXT;
+
 CREATE DATABASE IF NOT EXISTS course_management;
 USE course_management;
 

@@ -1,35 +1,33 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, and_
+from dotenv import load_dotenv
+import os
+
+
+load_dotenv()
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///course_management.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+
+
 db = SQLAlchemy(app)
 
+# ---------------------- Models ---------------------- #
 class User(db.Model):
     userid = db.Column(db.Integer, primary_key=True)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20))
-
-class Student(db.Model):
-    stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
-    name = db.Column(db.String(100))
-
-class Lecturer(db.Model):
-    lect_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
-    name = db.Column(db.String(100))
-
-class Admin(db.Model):
-    admin_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
-    email = db.Column(db.String(100))
+    role = db.Column(db.String(20), nullable=False) 
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=True)
 
 class Course(db.Model):
     course_id = db.Column(db.Integer, primary_key=True)
     course_name = db.Column(db.String(255))
-    lecturer_id = db.Column(db.Integer, db.ForeignKey('lecturer.lect_id'))
+    lecturer_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
 
 class CourseRegistration(db.Model):
-    stud_id = db.Column(db.Integer, db.ForeignKey('student.stud_id'), primary_key=True)
+    stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'), primary_key=True)
 
 class CalendarEvent(db.Model):
@@ -63,31 +61,59 @@ class Assignment(db.Model):
 
 class Submission(db.Model):
     assign_id = db.Column(db.Integer, db.ForeignKey('assignment.assign_id'), primary_key=True)
-    stud_id = db.Column(db.Integer, db.ForeignKey('student.stud_id'), primary_key=True)
+    stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     grade = db.Column(db.Float)
 
+# Notes to self
+# Ensure password is properly hashed
+# 
+
+# ---------------------- Auth ---------------------- #
+# ✅
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
-    user = User(userid=data['userid'], password=data['password'], role=data['role'])
+    user = User(userid=data['userid'], password=data['password'], role=data['role'], 
+                name=data.get('name', ''), email=data.get('email', ''))
     db.session.add(user)
-    if data['role'] == 'student':
-        db.session.add(Student(stud_id=data['userid'], name=data.get('name', '')))
-    elif data['role'] == 'lecturer':
-        db.session.add(Lecturer(lect_id=data['userid'], name=data.get('name', '')))
-    elif data['role'] == 'admin':
-        db.session.add(Admin(admin_id=data['userid'], email=data.get('email', '')))
     db.session.commit()
-    return jsonify({'message': 'User registered successfully'})
+
+    return jsonify({
+        'message': 'User registered successfully',
+        'user': {
+            'userid': user.userid,
+            'name': user.name,
+            'role': user.role,
+            'email': user.email
+        }
+    })
+    
+#     {
+#     "message": "User registered successfully",
+#     "user": {
+#         "email": "alice@gmail.com",
+#         "name": "Alice Johnson",
+#         "role": "student",
+#         "userid": 1002
+#     }
+# }
+
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    user = User.query.filter_by(userid=data['userid'], password=data['password']).first()
+    user = User.query.filter_by(email=data['email'], password=data['password']).first()
+
     if user:
         return jsonify({'message': 'Login successful', 'role': user.role})
     return jsonify({'message': 'Invalid credentials'}), 401
 
+# {
+#   "email":"alice@gmail.com",
+#   "password":"securePass123"
+# }
+
+# ---------------------- Course Management ---------------------- #
 @app.route('/courses', methods=['POST'])
 def create_course():
     data = request.json
@@ -122,9 +148,14 @@ def register_course():
 
 @app.route('/course-members/<int:course_id>', methods=['GET'])
 def get_course_members(course_id):
-    students = db.session.query(Student).join(CourseRegistration).filter(CourseRegistration.course_id == course_id).all()
-    return jsonify([{'id': s.stud_id, 'name': s.name} for s in students])
+    users = db.session.query(User).join(CourseRegistration).filter(
+        CourseRegistration.course_id == course_id,
+        User.userid == CourseRegistration.stud_id,
+        User.role == 'student'
+    ).all()
+    return jsonify([{'id': u.userid, 'name': u.name} for u in users])
 
+# ---------------------- Calendar ---------------------- #
 @app.route('/calendar/<int:course_id>', methods=['GET'])
 def get_course_events(course_id):
     return jsonify([{'title': e.title, 'date': e.date} for e in CalendarEvent.query.filter_by(course_id=course_id)])
@@ -144,6 +175,7 @@ def create_event():
     db.session.commit()
     return jsonify({'message': 'Event created'})
 
+# ---------------------- Forums ---------------------- #
 @app.route('/forum/<int:course_id>', methods=['GET', 'POST'])
 def forum(course_id):
     if request.method == 'GET':
@@ -164,6 +196,7 @@ def threads(forum_id):
     db.session.commit()
     return jsonify({'message': 'Thread added'})
 
+# ---------------------- Course Content ---------------------- #
 @app.route('/content/<int:course_id>', methods=['GET', 'POST'])
 def course_content(course_id):
     if request.method == 'GET':
@@ -174,6 +207,7 @@ def course_content(course_id):
     db.session.commit()
     return jsonify({'message': 'Content added'})
 
+# ---------------------- Assignments ---------------------- #
 @app.route('/assignment/<int:course_id>', methods=['POST'])
 def create_assignment(course_id):
     assignment = Assignment(course_id=course_id)
@@ -189,12 +223,14 @@ def submit_assignment():
     db.session.commit()
     return jsonify({'message': 'Assignment submitted'})
 
+# ---------------------- Reports ---------------------- #
 @app.route('/report/popular-courses', methods=['GET'])
 def top_courses():
     results = db.session.query(Course.course_name, func.count(CourseRegistration.stud_id).label('num_students')) \
         .join(CourseRegistration).group_by(Course.course_id).order_by(func.count(CourseRegistration.stud_id).desc()).limit(10).all()
     return jsonify([{'course': r[0], 'students': r[1]} for r in results])
 
+# ---------------------- Init ---------------------- #
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

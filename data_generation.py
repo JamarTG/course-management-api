@@ -39,8 +39,8 @@ if __name__ == "__main__":
             user_id += 1
 
         f.write("\n-- COURSES\n")
-        # Assign 1-5 courses per lecturer
-        course_id = 100
+      
+        course_id = 1
         lecturer_course_count = defaultdict(int)
         for _ in range(NUM_COURSES):
             while True:
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
         f.write("\n-- COURSE REGISTRATIONS\n")
 
-        # Ensure each course has at least 10 students
+    
         for course_id in courses:
             selected_students = sample(student_ids, MIN_STUDENTS_PER_COURSE)
             for sid in selected_students:

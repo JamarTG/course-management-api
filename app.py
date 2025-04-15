@@ -117,13 +117,25 @@ def login():
 @app.route('/courses', methods=['POST'])
 def create_course():
     data = request.json
-    user = User.query.get(data['admin_id'])
-    if not user or user.role != 'admin':
+
+    # Check if required fields are in the request
+    required_fields = ['userid', 'course_name', 'lecturer_id']
+    missing_fields = [field for field in required_fields if field not in data]
+
+    if missing_fields:
+        return jsonify({'message': f'Missing fields: {", ".join(missing_fields)}'}), 400
+
+   
+    user = User.query.get(data['userid'])
+    if not user or user.role != 'admin':  
         return jsonify({'message': 'Only admins can create courses'}), 403
+
+
     course = Course(course_name=data['course_name'], lecturer_id=data['lecturer_id'])
     db.session.add(course)
     db.session.commit()
-    return jsonify({'message': 'Course created'})
+
+    return jsonify({'message': 'Course created', 'course_id': course.course_id})
 
 @app.route('/courses', methods=['GET'])
 def get_courses():

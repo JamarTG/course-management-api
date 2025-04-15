@@ -144,7 +144,7 @@ def get_courses():
 @app.route('/courses/student/<int:stud_id>', methods=['GET'])
 def student_courses(stud_id):
     courses = db.session.query(Course).join(CourseRegistration).filter(CourseRegistration.stud_id == stud_id).all()
-    return jsonify([{'id': c.course_id, 'name': c.course_name} for c in courses])
+    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in courses])
 
 @app.route('/courses/lecturer/<int:lect_id>', methods=['GET'])
 def lecturer_courses(lect_id):

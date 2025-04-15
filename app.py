@@ -165,7 +165,7 @@ def get_course_members(course_id):
         User.userid == CourseRegistration.stud_id,
         User.role == 'student'
     ).all()
-    return jsonify([{'id': u.userid, 'name': u.name} for u in users])
+    return jsonify([{'user_id': u.userid, 'user_name': u.name} for u in users])
 
 # ---------------------- Calendar ---------------------- #
 @app.route('/calendar/<int:course_id>', methods=['GET'])

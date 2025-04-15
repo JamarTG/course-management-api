@@ -148,7 +148,7 @@ def student_courses(stud_id):
 
 @app.route('/courses/lecturer/<int:lect_id>', methods=['GET'])
 def lecturer_courses(lect_id):
-    return jsonify([{'id': c.course_id, 'name': c.course_name} for c in Course.query.filter_by(lecturer_id=lect_id)])
+    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in Course.query.filter_by(lecturer_id=lect_id)])
 
 @app.route('/register-course', methods=['POST'])
 def register_course():

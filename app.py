@@ -139,7 +139,7 @@ def create_course():
 
 @app.route('/courses', methods=['GET'])
 def get_courses():
-    return jsonify([{'id': c.course_id, 'name': c.course_name} for c in Course.query.all()])
+    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in Course.query.all()])
 
 @app.route('/courses/student/<int:stud_id>', methods=['GET'])
 def student_courses(stud_id):

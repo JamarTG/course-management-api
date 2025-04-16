@@ -1,59 +1,31 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, and_
+from sqlalchemy import func, text
 from dotenv import load_dotenv
 import os
-
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-
-
 db = SQLAlchemy(app)
 
 # ---------------------- Models ---------------------- #
 class User(db.Model):
     userid = db.Column(db.Integer, primary_key=True)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False) 
+    role = db.Column(db.Enum('student', 'lecturer', 'admin'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), nullable=True)
+    email = db.Column(db.String(100))
 
 class Course(db.Model):
     course_id = db.Column(db.Integer, primary_key=True)
     course_name = db.Column(db.String(255))
     lecturer_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
 
-class CourseRegistration(db.Model):
+class Course_Registration(db.Model):
     stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'), primary_key=True)
-
-class CalendarEvent(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
-    title = db.Column(db.String(100))
-    date = db.Column(db.String(50))
-
-class Forum(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
-    title = db.Column(db.String(100))
-
-class Thread(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    forum_id = db.Column(db.Integer, db.ForeignKey('forum.id'))
-    parent_id = db.Column(db.Integer, db.ForeignKey('thread.id'), nullable=True)
-    title = db.Column(db.String(255))
-    body = db.Column(db.Text)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
-
-class CourseContent(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
-    section = db.Column(db.String(100))
-    content = db.Column(db.Text)
 
 class Assignment(db.Model):
     assign_id = db.Column(db.Integer, primary_key=True)
@@ -62,188 +34,360 @@ class Assignment(db.Model):
 class Submission(db.Model):
     assign_id = db.Column(db.Integer, db.ForeignKey('assignment.assign_id'), primary_key=True)
     stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
-    grade = db.Column(db.Float)
+    grade = db.Column(db.Numeric(5, 2))
 
-# Notes to self
-# Ensure password is properly hashed
-# 
+class Calendar_Event(db.Model):
+    event_id = db.Column(db.Integer, primary_key=True)
+    event_title = db.Column(db.String(255))
+    event_date = db.Column(db.String(50))
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
-# ---------------------- Auth ---------------------- #
-# ✅
+class Course_Content(db.Model):
+    content_id = db.Column(db.Integer, primary_key=True)
+    content_title = db.Column(db.String(255))
+    content_body = db.Column(db.Text)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
+
+class Forum(db.Model):
+    forum_id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
+
+class Discussion_Thread(db.Model):
+    __tablename__ = 'discussion_thread'
+    thread_id = db.Column(db.Integer, primary_key=True)
+    dis_title = db.Column(db.String(255))
+    forum_id = db.Column(db.Integer, db.ForeignKey('forum.forum_id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.userid'))
+
+class Comment_Thread(db.Model):
+    __tablename__ = 'comment_thread'
+    comment_id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey('discussion_thread.thread_id'))
+    commenter_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
+    comment_text = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, server_default=func.now())
+
+class Thread_Reply(db.Model):
+    reply_id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey('discussion_thread.thread_id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
+    reply_text = db.Column(db.Text)
+    replied_at = db.Column(db.DateTime, server_default=func.now())
+
+# Register User
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
-    user = User(userid=data['userid'], password=data['password'], role=data['role'], 
-                name=data.get('name', ''), email=data.get('email', ''))
-    db.session.add(user)
-    db.session.commit()
 
-    return jsonify({
-        'message': 'User registered successfully',
-        'user': {
-            'userid': user.userid,
-            'name': user.name,
-            'role': user.role,
-            'email': user.email
-        }
-    })
+    if not all(field in data for field in ['password', 'role', 'name']):
+        return jsonify({'message': 'Missing required fields'}), 400
     
-#     {
-#     "message": "User registered successfully",
-#     "user": {
-#         "email": "alice@gmail.com",
-#         "name": "Alice Johnson",
-#         "role": "student",
-#         "userid": 1002
-#     }
-# }
+    if data['role'] not in ['student', 'lecturer', 'admin']:
+        return jsonify({'message': 'Invalid role. Must be student, lecturer, or admin'}), 400
 
+    sql = text("SELECT * FROM user WHERE name = :name")
+    existing_user = db.session.execute(sql, {'name': data.get('name')}).fetchone()
+
+    if existing_user:
+        return jsonify({'message': 'User already exists'}), 400
+
+    try:
+        sql = text("INSERT INTO user (password, role, name, email) VALUES (:password, :role, :name, :email)")
+        db.session.execute(sql, {
+            'password': data.get('password'),
+            'role': data.get('role'),
+            'name': data.get('name'),
+            'email': data.get('email', '')
+        })
+        db.session.commit()
+
+        last_inserted_id = db.session.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
+
+        return jsonify({ 
+            'message': 'User registered successfully', 
+            'user': {
+                'userid': last_inserted_id,  
+                'name': data.get('name'),
+                'role': data.get('role'),
+                'email': data.get('email', '')
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Registration failed', 'error': str(e)}), 500
+
+
+# User Login
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    user = User.query.filter_by(email=data['email'], password=data['password']).first()
 
-    if user:
-        return jsonify({'message': 'Login successful', 'role': user.role})
-    return jsonify({'message': 'Invalid credentials'}), 401
+    if not data.get('userid') or not data.get('password'):
+        return jsonify({'message': 'User ID and password are required'}), 400
 
-# {
-#   "email":"alice@gmail.com",
-#   "password":"securePass123"
-# }
+    try:
+        sql = text("SELECT * FROM user WHERE userid = :userid AND password = :password")
+        user = db.session.execute(sql, {'userid': data['userid'], 'password': data['password']}).fetchone()
 
-# ---------------------- Course Management ---------------------- #
+        if user:
+            return jsonify({'message': 'Login successful', 'role': user[2]})  
+        return jsonify({'message': 'Invalid credentials'}), 401
+
+    except Exception as e:
+        return jsonify({'message': 'An error occurred during login', 'error': str(e)}), 500
+
+
+# Create Course
+
 @app.route('/courses', methods=['POST'])
 def create_course():
     data = request.json
-
-    # Check if required fields are in the request
-    required_fields = ['userid', 'course_name', 'lecturer_id']
-    missing_fields = [field for field in required_fields if field not in data]
-
-    if missing_fields:
-        return jsonify({'message': f'Missing fields: {", ".join(missing_fields)}'}), 400
-
-   
-    user = User.query.get(data['userid'])
-    if not user or user.role != 'admin':  
+    
+    sql = text("SELECT * FROM user WHERE userid = :userid")
+    admin = db.session.execute(sql, {'userid': data['userid']}).fetchone()
+    if not admin or admin[2] != 'admin':  
         return jsonify({'message': 'Only admins can create courses'}), 403
+    
+    sql = text("SELECT * FROM user WHERE userid = :lecturer_id")
+    lecturer = db.session.execute(sql, {'lecturer_id': data['lecturer_id']}).fetchone()
+    if not lecturer or lecturer[2] != 'lecturer': 
+        return jsonify({'message': 'Invalid lecturer. Please provide a valid user with a lecturer role.'}), 400
 
-
-    course = Course(course_name=data['course_name'], lecturer_id=data['lecturer_id'])
-    db.session.add(course)
+    sql = text("INSERT INTO course (course_name, lecturer_id) VALUES (:course_name, :lecturer_id)")
+    db.session.execute(sql, {
+        'course_name': data['course_name'],
+        'lecturer_id': data['lecturer_id']
+    })
     db.session.commit()
 
-    return jsonify({'message': 'Course created', 'course_id': course.course_id})
+    sql = text("SELECT LAST_INSERT_ID()")
+    course_id = db.session.execute(sql).fetchone()[0]
+
+    return jsonify({'message': 'Course created', 'course_id': course_id})
+
+# Retrieve Courses
 
 @app.route('/courses', methods=['GET'])
 def get_courses():
-    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in Course.query.all()])
+    sql = text("SELECT course_id, course_name FROM course")
+    result = db.session.execute(sql).fetchall()
+    return jsonify([{'course_id': row[0], 'course_name': row[1]} for row in result])
 
-@app.route('/courses/student/<int:stud_id>', methods=['GET'])
-def student_courses(stud_id):
-    courses = db.session.query(Course).join(CourseRegistration).filter(CourseRegistration.stud_id == stud_id).all()
-    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in courses])
+@app.route('/courses/student/<int:userid>', methods=['GET'])
+def get_student_courses(userid):
+    sql = text("SELECT * FROM user WHERE userid = :userid")
+    result = db.session.execute(sql, {'userid': userid}).fetchone()
+    
+    if not result:
+        return jsonify({'message': 'User not found'}), 404
+    
 
-@app.route('/courses/lecturer/<int:lect_id>', methods=['GET'])
-def lecturer_courses(lect_id):
-    return jsonify([{'course_id': c.course_id, 'course_name': c.course_name} for c in Course.query.filter_by(lecturer_id=lect_id)])
+    if result[2] != 'student': 
+        return jsonify({'message': 'Only students can access this route'}), 403
 
-@app.route('/register-course', methods=['POST'])
+    sql = text("SELECT course_id FROM course_registration WHERE stud_id = :userid")
+    registrations = db.session.execute(sql, {'userid': userid}).fetchall()
+    course_ids = [reg[0] for reg in registrations]  # Access course_id by index
+
+    sql = text("SELECT course_id, course_name FROM course WHERE course_id IN :course_ids")
+    courses = db.session.execute(sql, {'course_ids': tuple(course_ids)}).fetchall()
+
+    return jsonify([{'course_id': row[0], 'course_name': row[1]} for row in courses])
+
+@app.route('/courses/lecturer/<int:userid>', methods=['GET'])
+def get_lecturer_courses(userid):
+    sql = text("SELECT * FROM user WHERE userid = :userid")
+    user = db.session.execute(sql, {'userid': userid}).fetchone()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    if user[2] != 'lecturer':
+        return jsonify({'message': 'Only lecturers can access this route'}), 403
+
+    sql = text("SELECT course_id, course_name FROM course WHERE lecturer_id = :userid")
+    courses = db.session.execute(sql, {'userid': userid}).fetchall()
+
+    return jsonify([{'course_id': course[0], 'course_name': course[1]} for course in courses])
+
+
+# Register for Course
+
+@app.route('/register-student', methods=['POST'])
 def register_course():
     data = request.json
-    reg = CourseRegistration(stud_id=data['stud_id'], course_id=data['course_id'])
-    db.session.add(reg)
+    
+    if not all(field in data for field in ['stud_id', 'course_id']):
+        return jsonify({'message': 'Missing stud_id or course_id'}), 400
+    
+    sql = text("SELECT * FROM user WHERE userid = :stud_id")
+    user = db.session.execute(sql, {'stud_id': data['stud_id']}).fetchone()
+    
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    if user[2] != 'student':  # Assuming the role is at index 2
+        return jsonify({'message': 'Only students can register for courses'}), 403
+    
+    sql = text("SELECT * FROM course WHERE course_id = :course_id")
+    course = db.session.execute(sql, {'course_id': data['course_id']}).fetchone()
+    
+    if not course:
+        return jsonify({'message': 'Course not found'}), 404
+    
+    sql = text("INSERT INTO course_registration (stud_id, course_id) VALUES (:stud_id, :course_id)")
+    db.session.execute(sql, {'stud_id': data['stud_id'], 'course_id': data['course_id']})
     db.session.commit()
-    return jsonify({'message': 'Student registered for course'})
+    
+    return jsonify({'message': 'Student successfully registered for the course'})
+
+
+@app.route('/register-lecturer', methods=['POST'])
+def register_lecturer():
+    data = request.json
+    
+    if not all(field in data for field in ['lecturer_id', 'course_id']):
+        return jsonify({'message': 'Missing lecturer_id or course_id'}), 400
+    
+    sql = text("SELECT * FROM user WHERE userid = :lecturer_id")
+    user = db.session.execute(sql, {'lecturer_id': data['lecturer_id']}).fetchone()
+    
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    
+    if user[2] != 'lecturer':  # Assuming the role is at index 2
+        return jsonify({'message': 'Only lecturers can register for courses'}), 403
+    
+    sql = text("SELECT * FROM course WHERE course_id = :course_id")
+    course = db.session.execute(sql, {'course_id': data['course_id']}).fetchone()
+    
+    if not course:
+        return jsonify({'message': 'Course not found'}), 404
+    
+    sql = text("INSERT INTO course_registration (stud_id, course_id) VALUES (:lecturer_id, :course_id)")
+    db.session.execute(sql, {'lecturer_id': data['lecturer_id'], 'course_id': data['course_id']})
+    db.session.commit()
+    
+    return jsonify({'message': 'Lecturer successfully registered for the course'})
+
+
+# Retrieve Members
 
 @app.route('/course-members/<int:course_id>', methods=['GET'])
 def get_course_members(course_id):
-    users = db.session.query(User).join(CourseRegistration).filter(
-        CourseRegistration.course_id == course_id,
-        User.userid == CourseRegistration.stud_id,
-        User.role == 'student'
-    ).all()
-    return jsonify([{'user_id': u.userid, 'user_name': u.name} for u in users])
+    sql = text("SELECT * FROM course WHERE course_id = :course_id")
+    course = db.session.execute(sql, {'course_id': course_id}).fetchone()
+    
+    if not course:
+        return jsonify({'message': 'Course not found'}), 404
+    
+    lecturer_id = course[2]
+    sql = text("SELECT userid, name, email FROM user WHERE userid = :lecturer_id")
+    lecturer = db.session.execute(sql, {'lecturer_id': lecturer_id}).fetchone()
+    
+    if not lecturer:
+        return jsonify({'message': 'Lecturer not found'}), 404
+    
+    sql = text("SELECT stud_id FROM course_registration WHERE course_id = :course_id")
+    students = db.session.execute(sql, {'course_id': course_id}).fetchall()
+    
+    student_list = []
+    for student in students:
+        sql = text("SELECT userid, name, email FROM user WHERE userid = :stud_id")
+        student_data = db.session.execute(sql, {'stud_id': student[0]}).fetchone()
+        
+        if student_data:
+            student_list.append({
+                'student_id': student_data[0],
+                'name': student_data[1],
+                'email': student_data[2]
+            })
+    
+    return jsonify({
+        'message': 'Course members retrieved successfully',
+        'lecturer': {
+            'lecturer_id': lecturer[0],
+            'name': lecturer[1],
+            'email': lecturer[2]
+        },
+        'students': student_list
+    })
 
 # ---------------------- Calendar ---------------------- #
+
 @app.route('/calendar/<int:course_id>', methods=['GET'])
 def get_course_events(course_id):
-    return jsonify([{'title': e.title, 'date': e.date} for e in CalendarEvent.query.filter_by(course_id=course_id)])
-
-@app.route('/calendar/student/<int:stud_id>/<string:date>', methods=['GET'])
-def get_student_events_by_date(stud_id, date):
-    course_ids = db.session.query(CourseRegistration.course_id).filter_by(stud_id=stud_id).all()
-    course_ids = [id for (id,) in course_ids]
-    events = CalendarEvent.query.filter(and_(CalendarEvent.course_id.in_(course_ids), CalendarEvent.date == date)).all()
-    return jsonify([{'title': e.title, 'date': e.date} for e in events])
+    sql = text("SELECT event_title, event_date FROM calendar_event WHERE course_id = :course_id")
+    events = db.session.execute(sql, {'course_id': course_id}).fetchall()
+    return jsonify([{'event_title': row['event_title'], 'event_date': row['event_date']} for row in events])
 
 @app.route('/calendar', methods=['POST'])
 def create_event():
     data = request.json
-    event = CalendarEvent(course_id=data['course_id'], title=data['title'], date=data['date'])
-    db.session.add(event)
+    sql = text("INSERT INTO calendar_event (event_title, event_date, course_id) VALUES (:event_title, :event_date, :course_id)")
+    db.session.execute(sql, {
+        'event_title': data['event_title'],
+        'event_date': data['event_date'],
+        'course_id': data['course_id']
+    })
     db.session.commit()
     return jsonify({'message': 'Event created'})
 
 # ---------------------- Forums ---------------------- #
+
 @app.route('/forum/<int:course_id>', methods=['GET', 'POST'])
 def forum(course_id):
     if request.method == 'GET':
-        return jsonify([{'id': f.id, 'title': f.title} for f in Forum.query.filter_by(course_id=course_id)])
+        sql = text("SELECT forum_id FROM forum WHERE course_id = :course_id")
+        result = db.session.execute(sql, {'course_id': course_id}).fetchall()
+        return jsonify([{'forum_id': row['forum_id']} for row in result])
+
     data = request.json
-    forum = Forum(course_id=course_id, title=data['title'])
-    db.session.add(forum)
+    sql = text("INSERT INTO forum (course_id) VALUES (:course_id) RETURNING forum_id")
+    result = db.session.execute(sql, {'course_id': course_id})
     db.session.commit()
-    return jsonify({'message': 'Forum created'})
+    forum = result.fetchone()
+
+    return jsonify({'message': 'Forum created', 'forum_id': forum['forum_id']})
 
 @app.route('/threads/<int:forum_id>', methods=['GET', 'POST'])
 def threads(forum_id):
     if request.method == 'GET':
-        return jsonify([{'id': t.id, 'title': t.title, 'body': t.body, 'parent': t.parent_id} for t in Thread.query.filter_by(forum_id=forum_id)])
+        sql = text("SELECT thread_id, dis_title FROM discussion_thread WHERE forum_id = :forum_id")
+        result = db.session.execute(sql, {'forum_id': forum_id}).fetchall()
+        return jsonify([{'thread_id': row['thread_id'], 'dis_title': row['dis_title']} for row in result])
+
     data = request.json
-    thread = Thread(forum_id=forum_id, parent_id=data.get('parent_id'), title=data.get('title', ''), body=data['body'], user_id=data['user_id'])
-    db.session.add(thread)
+    sql = text("INSERT INTO discussion_thread (forum_id, dis_title, created_by) VALUES (:forum_id, :dis_title, :created_by) RETURNING thread_id")
+    result = db.session.execute(sql, {
+        'forum_id': forum_id,
+        'dis_title': data['dis_title'],
+        'created_by': data['created_by']
+    })
     db.session.commit()
-    return jsonify({'message': 'Thread added'})
+    thread = result.fetchone()
+
+    return jsonify({'message': 'Thread added', 'thread_id': thread['thread_id']})
 
 # ---------------------- Course Content ---------------------- #
+
 @app.route('/content/<int:course_id>', methods=['GET', 'POST'])
 def course_content(course_id):
     if request.method == 'GET':
-        return jsonify([{'section': c.section, 'content': c.content} for c in CourseContent.query.filter_by(course_id=course_id)])
+        sql = text("SELECT content_title, content_body FROM course_content WHERE course_id = :course_id")
+        result = db.session.execute(sql, {'course_id': course_id}).fetchall()
+        return jsonify([{'content_title': row['content_title'], 'content_body': row['content_body']} for row in result])
+
     data = request.json
-    content = CourseContent(course_id=course_id, section=data['section'], content=data['content'])
-    db.session.add(content)
+    sql = text("INSERT INTO course_content (content_title, content_body, course_id) VALUES (:content_title, :content_body, :course_id)")
+    db.session.execute(sql, {
+        'content_title': data['content_title'],
+        'content_body': data['content_body'],
+        'course_id': course_id
+    })
     db.session.commit()
-    return jsonify({'message': 'Content added'})
+    return jsonify({'message': 'Course content added'})
 
-# ---------------------- Assignments ---------------------- #
-@app.route('/assignment/<int:course_id>', methods=['POST'])
-def create_assignment(course_id):
-    assignment = Assignment(course_id=course_id)
-    db.session.add(assignment)
-    db.session.commit()
-    return jsonify({'message': 'Assignment created', 'assign_id': assignment.assign_id})
-
-@app.route('/submit', methods=['POST'])
-def submit_assignment():
-    data = request.json
-    submission = Submission(assign_id=data['assign_id'], stud_id=data['stud_id'], grade=data['grade'])
-    db.session.add(submission)
-    db.session.commit()
-    return jsonify({'message': 'Assignment submitted'})
-
-# ---------------------- Reports ---------------------- #
-@app.route('/report/popular-courses', methods=['GET'])
-def top_courses():
-    results = db.session.query(Course.course_name, func.count(CourseRegistration.stud_id).label('num_students')) \
-        .join(CourseRegistration).group_by(Course.course_id).order_by(func.count(CourseRegistration.stud_id).desc()).limit(10).all()
-    return jsonify([{'course': r[0], 'students': r[1]} for r in results])
-
-# ---------------------- Init ---------------------- #
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)

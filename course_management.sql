@@ -100,14 +100,9 @@ ALTER TABLE Discussion_Thread
 ADD FOREIGN KEY (forum_id) REFERENCES Forum(forum_id),
 ADD FOREIGN KEY (created_by) REFERENCES User(userid);
 
-ALTER TABLE Comment_Thread
-ADD FOREIGN KEY (thread_id) REFERENCES Discussion_Thread(thread_id),
-ADD FOREIGN KEY (commenter_id) REFERENCES User(userid);
-
 ALTER TABLE Thread_Reply
-FOREIGN KEY (comment_id) REFERENCES Comment_Thread(comment_id)
+ADD FOREIGN KEY (thread_id) REFERENCES Discussion_Thread(thread_id),
 ADD FOREIGN KEY (user_id) REFERENCES User(userid);
 
 ALTER TABLE Thread_Reply
-ADD COLUMN parent_reply_id INT DEFAULT NULL,
 ADD FOREIGN KEY (parent_reply_id) REFERENCES Thread_Reply(reply_id);

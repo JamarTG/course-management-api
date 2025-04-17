@@ -395,26 +395,27 @@ def threads(forum_id):
     })
     db.session.commit()
 
-
     thread_id = db.session.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
 
     return jsonify({'message': 'Thread added', 'thread_id': thread_id})
+
 
 @app.route('/threads/<int:thread_id>/replies', methods=['POST'])
 def add_reply(thread_id):
     data = request.json
     sql = text("""
-        INSERT INTO thread_reply (comment_id, user_id, reply_text, parent_reply_id)
-        VALUES (:comment_id, :user_id, :reply_text, :parent_reply_id)
+        INSERT INTO thread_reply (thread_id, user_id, reply_text, parent_reply_id)
+        VALUES (:thread_id, :user_id, :reply_text, :parent_reply_id)
     """)
     db.session.execute(sql, {
-        'comment_id': data['comment_id'],
+        'thread_id': thread_id,  # changed from comment_id to thread_id
         'user_id': data['user_id'],
         'reply_text': data['reply_text'],
-        'parent_reply_id': data.get('parent_reply_id')
+        'parent_reply_id': data.get('parent_reply_id')  # allows for nested replies
     })
     db.session.commit()
     return jsonify({'message': 'Reply added'})
+
 
 # ---------------------- Course Content ---------------------- #
 

@@ -1,3 +1,5 @@
+-- Considering adding a title for the forum
+
 CREATE DATABASE IF NOT EXISTS course_management;
 USE course_management;
 
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS Course_Content (
 CREATE TABLE IF NOT EXISTS Forum (
     forum_id INT AUTO_INCREMENT PRIMARY KEY,
     course_id INT
+    forum_title VARCHAR(255) NOT NULL  
 );
 
 CREATE TABLE IF NOT EXISTS Discussion_Thread (
@@ -69,13 +72,16 @@ CREATE TABLE IF NOT EXISTS Comment_Thread (
 
 CREATE TABLE IF NOT EXISTS Thread_Reply (
     reply_id INT AUTO_INCREMENT PRIMARY KEY,
-    thread_id INT,
+    comment_id INT,
     user_id INT,
     reply_text TEXT,
-    replied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    replied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    parent_reply_id INT DEFAULT NULL
 );
 
--- Add foreign keys after all tables are created
+
+
+
 ALTER TABLE Course
 ADD FOREIGN KEY (lecturer_id) REFERENCES User(userid);
 
@@ -108,5 +114,9 @@ ADD FOREIGN KEY (thread_id) REFERENCES Discussion_Thread(thread_id),
 ADD FOREIGN KEY (commenter_id) REFERENCES User(userid);
 
 ALTER TABLE Thread_Reply
-ADD FOREIGN KEY (thread_id) REFERENCES Discussion_Thread(thread_id),
+FOREIGN KEY (comment_id) REFERENCES Comment_Thread(comment_id)
 ADD FOREIGN KEY (user_id) REFERENCES User(userid);
+
+ALTER TABLE Thread_Reply
+ADD COLUMN parent_reply_id INT DEFAULT NULL,
+ADD FOREIGN KEY (parent_reply_id) REFERENCES Thread_Reply(reply_id);

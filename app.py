@@ -12,6 +12,7 @@ db = SQLAlchemy(app)
 
 # ---------------------- Models ---------------------- #
 class User(db.Model):
+    __tablename__ = 'user' 
     userid = db.Column(db.Integer, primary_key=True)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.Enum('student', 'lecturer', 'admin'), nullable=False)
@@ -19,48 +20,55 @@ class User(db.Model):
     email = db.Column(db.String(100))
 
 class Course(db.Model):
+    __tablename__ = 'course'  
     course_id = db.Column(db.Integer, primary_key=True)
     course_name = db.Column(db.String(255))
     lecturer_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
 
 class Course_Registration(db.Model):
+    __tablename__ = 'course_registration'  
     stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'), primary_key=True)
 
 class Assignment(db.Model):
+    __tablename__ = 'assignment' 
     assign_id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
 class Submission(db.Model):
+    __tablename__ = 'submission'  
     assign_id = db.Column(db.Integer, db.ForeignKey('assignment.assign_id'), primary_key=True)
     stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     grade = db.Column(db.Numeric(5, 2))
 
 class Calendar_Event(db.Model):
+    __tablename__ = 'calendar_event' 
     event_id = db.Column(db.Integer, primary_key=True)
     event_title = db.Column(db.String(255))
     event_date = db.Column(db.String(50))
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
 class Course_Content(db.Model):
+    __tablename__ = 'course_content'  
     content_id = db.Column(db.Integer, primary_key=True)
     content_title = db.Column(db.String(255))
     content_body = db.Column(db.Text)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
 class Forum(db.Model):
+    __tablename__ = 'forum' 
     forum_id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
 class Discussion_Thread(db.Model):
-    __tablename__ = 'discussion_thread'
+    __tablename__ = 'discussion_thread'  
     thread_id = db.Column(db.Integer, primary_key=True)
     dis_title = db.Column(db.String(255))
     forum_id = db.Column(db.Integer, db.ForeignKey('forum.forum_id'))
     created_by = db.Column(db.Integer, db.ForeignKey('user.userid'))
 
 class Comment_Thread(db.Model):
-    __tablename__ = 'comment_thread'
+    __tablename__ = 'comment_thread' 
     comment_id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('discussion_thread.thread_id'))
     commenter_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
@@ -68,11 +76,13 @@ class Comment_Thread(db.Model):
     created_at = db.Column(db.DateTime, server_default=func.now())
 
 class Thread_Reply(db.Model):
+    __tablename__ = 'thread_reply'  
     reply_id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.Integer, db.ForeignKey('discussion_thread.thread_id'))
     user_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
     reply_text = db.Column(db.Text)
     replied_at = db.Column(db.DateTime, server_default=func.now())
+
 
 # Register User
 
@@ -314,17 +324,25 @@ def get_course_members(course_id):
         'students': student_list
     })
 
-# ---------------------- Calendar ---------------------- #
+# Create Calendar Events
 
-@app.route('/calendar/<int:course_id>', methods=['GET'])
-def get_course_events(course_id):
-    sql = text("SELECT event_title, event_date FROM calendar_event WHERE course_id = :course_id")
-    events = db.session.execute(sql, {'course_id': course_id}).fetchall()
-    return jsonify([{'event_title': row['event_title'], 'event_date': row['event_date']} for row in events])
 
 @app.route('/calendar', methods=['POST'])
 def create_event():
     data = request.json
+
+    # Ensure the required fields are provided
+    if not all(field in data for field in ['event_title', 'event_date', 'course_id']):
+        return jsonify({'message': 'Missing required fields'}), 400
+    
+    # Check if the course exists
+    sql = text("SELECT * FROM course WHERE course_id = :course_id")
+    course = db.session.execute(sql, {'course_id': data['course_id']}).fetchone()
+    
+    if not course:
+        return jsonify({'message': 'Course not found'}), 404
+    
+    # Insert the new event into the calendar_event table
     sql = text("INSERT INTO calendar_event (event_title, event_date, course_id) VALUES (:event_title, :event_date, :course_id)")
     db.session.execute(sql, {
         'event_title': data['event_title'],
@@ -332,43 +350,71 @@ def create_event():
         'course_id': data['course_id']
     })
     db.session.commit()
-    return jsonify({'message': 'Event created'})
 
-# ---------------------- Forums ---------------------- #
+    return jsonify({'message': 'Event created successfully'})
 
+
+# Forums - This part includes both fetching and posting for a course
 @app.route('/forum/<int:course_id>', methods=['GET', 'POST'])
 def forum(course_id):
     if request.method == 'GET':
-        sql = text("SELECT forum_id FROM forum WHERE course_id = :course_id")
+        
+        sql = text("SELECT forum_id, forum_title FROM forum WHERE course_id = :course_id")
         result = db.session.execute(sql, {'course_id': course_id}).fetchall()
-        return jsonify([{'forum_id': row['forum_id']} for row in result])
+        return jsonify([{'forum_id': row[0], 'forum_title': row[1]} for row in result])
 
     data = request.json
-    sql = text("INSERT INTO forum (course_id) VALUES (:course_id) RETURNING forum_id")
-    result = db.session.execute(sql, {'course_id': course_id})
-    db.session.commit()
-    forum = result.fetchone()
+    forum_title = data.get('forum_title') 
 
-    return jsonify({'message': 'Forum created', 'forum_id': forum['forum_id']})
+    if not forum_title:
+        return jsonify({'error': 'Forum title is required'}), 400
+
+    sql = text("INSERT INTO forum (course_id, forum_title) VALUES (:course_id, :forum_title)")
+    db.session.execute(sql, {'course_id': course_id, 'forum_title': forum_title})
+    db.session.commit()
+
+    forum_id = db.session.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
+
+    return jsonify({'message': 'Forum created', 'forum_id': forum_id, 'forum_title': forum_title})
+
+# Discussion Thread
 
 @app.route('/threads/<int:forum_id>', methods=['GET', 'POST'])
 def threads(forum_id):
     if request.method == 'GET':
         sql = text("SELECT thread_id, dis_title FROM discussion_thread WHERE forum_id = :forum_id")
         result = db.session.execute(sql, {'forum_id': forum_id}).fetchall()
-        return jsonify([{'thread_id': row['thread_id'], 'dis_title': row['dis_title']} for row in result])
+        return jsonify([{'thread_id': row[0], 'dis_title': row[1]} for row in result])
 
     data = request.json
-    sql = text("INSERT INTO discussion_thread (forum_id, dis_title, created_by) VALUES (:forum_id, :dis_title, :created_by) RETURNING thread_id")
-    result = db.session.execute(sql, {
+    sql = text("INSERT INTO discussion_thread (forum_id, dis_title, created_by) VALUES (:forum_id, :dis_title, :created_by)")
+    db.session.execute(sql, {
         'forum_id': forum_id,
         'dis_title': data['dis_title'],
         'created_by': data['created_by']
     })
     db.session.commit()
-    thread = result.fetchone()
 
-    return jsonify({'message': 'Thread added', 'thread_id': thread['thread_id']})
+
+    thread_id = db.session.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
+
+    return jsonify({'message': 'Thread added', 'thread_id': thread_id})
+
+@app.route('/threads/<int:thread_id>/replies', methods=['POST'])
+def add_reply(thread_id):
+    data = request.json
+    sql = text("""
+        INSERT INTO thread_reply (comment_id, user_id, reply_text, parent_reply_id)
+        VALUES (:comment_id, :user_id, :reply_text, :parent_reply_id)
+    """)
+    db.session.execute(sql, {
+        'comment_id': data['comment_id'],
+        'user_id': data['user_id'],
+        'reply_text': data['reply_text'],
+        'parent_reply_id': data.get('parent_reply_id')
+    })
+    db.session.commit()
+    return jsonify({'message': 'Reply added'})
 
 # ---------------------- Course Content ---------------------- #
 

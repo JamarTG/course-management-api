@@ -1,4 +1,4 @@
--- Considering adding a title for the forum
+-- Make the properties not null
 
 CREATE DATABASE IF NOT EXISTS course_management;
 USE course_management;
@@ -25,15 +25,21 @@ CREATE TABLE IF NOT EXISTS Course_Registration (
 
 CREATE TABLE IF NOT EXISTS Assignment (
     assign_id INT AUTO_INCREMENT PRIMARY KEY,
-    course_id INT
+    course_id INT,
+    title VARCHAR(100),
+    description TEXT,
+    due_date DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS Submission (
     assign_id INT,
     stud_id INT,
     grade DECIMAL(5,2),
+    submission_url VARCHAR(255),
+    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (assign_id, stud_id)
 );
+
 
 CREATE TABLE IF NOT EXISTS Calendar_Event (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -42,12 +48,24 @@ CREATE TABLE IF NOT EXISTS Calendar_Event (
     course_id INT
 );
 
+
+CREATE TABLE IF NOT EXISTS Section (
+    section_id INT AUTO_INCREMENT PRIMARY KEY,
+    section_title VARCHAR(50) NOT NULL, 
+    course_id INT,  
+   
+);
+
 CREATE TABLE IF NOT EXISTS Course_Content (
     content_id INT AUTO_INCREMENT PRIMARY KEY,
     content_title VARCHAR(255),
-    content_body TEXT,
+    content_url VARCHAR(255), 
+    content_type ENUM('link', 'file', 'slide') NOT NULL,
+    section_id INT,
     course_id INT
 );
+
+
 
 CREATE TABLE IF NOT EXISTS Forum (
     forum_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -72,7 +90,6 @@ CREATE TABLE IF NOT EXISTS Thread_Reply (
 );
 
 
-
 ALTER TABLE Course
 ADD FOREIGN KEY (lecturer_id) REFERENCES User(userid);
 
@@ -92,6 +109,7 @@ ADD FOREIGN KEY (course_id) REFERENCES Course(course_id);
 
 ALTER TABLE Course_Content
 ADD FOREIGN KEY (course_id) REFERENCES Course(course_id);
+add FOREIGN KEY (section_id) REFERENCES Section(section_id)
 
 ALTER TABLE Forum
 ADD FOREIGN KEY (course_id) REFERENCES Course(course_id);
@@ -106,3 +124,6 @@ ADD FOREIGN KEY (user_id) REFERENCES User(userid);
 
 ALTER TABLE Thread_Reply
 ADD FOREIGN KEY (parent_reply_id) REFERENCES Thread_Reply(reply_id);
+
+ALTER TABLE Section 
+ADD FOREIGN KEY (course_id) REFERENCES Course(course_id)

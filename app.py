@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, text
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 load_dotenv()
 
@@ -31,15 +32,20 @@ class Course_Registration(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'), primary_key=True)
 
 class Assignment(db.Model):
-    __tablename__ = 'assignment' 
+    __tablename__ = 'assignment'
     assign_id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
+    title = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    due_date = db.Column(db.DateTime)
 
 class Submission(db.Model):
-    __tablename__ = 'submission'  
+    __tablename__ = 'submission'
     assign_id = db.Column(db.Integer, db.ForeignKey('assignment.assign_id'), primary_key=True)
     stud_id = db.Column(db.Integer, db.ForeignKey('user.userid'), primary_key=True)
     grade = db.Column(db.Numeric(5, 2))
+    submission_url = db.Column(db.String(255))
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Calendar_Event(db.Model):
     __tablename__ = 'calendar_event' 
@@ -48,17 +54,26 @@ class Calendar_Event(db.Model):
     event_date = db.Column(db.String(50))
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
-class Course_Content(db.Model):
-    __tablename__ = 'course_content'  
-    content_id = db.Column(db.Integer, primary_key=True)
-    content_title = db.Column(db.String(255))
-    content_body = db.Column(db.Text)
+class Section(db.Model):
+    __tablename__ = 'section'
+    section_id = db.Column(db.Integer, primary_key=True)
+    section_title = db.Column(db.String(255), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
 
+class Course_Content(db.Model):
+    __tablename__ = 'course_content'
+    content_id = db.Column(db.Integer, primary_key=True)
+    content_title = db.Column(db.String(255))
+    content_url = db.Column(db.String(255))
+    content_type = db.Column(db.Enum('link', 'file', 'slide', name='content_types'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
+    section_id = db.Column(db.Integer, db.ForeignKey('section.section_id'))
+    
 class Forum(db.Model):
     __tablename__ = 'forum' 
     forum_id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.course_id'))
+    forum_title = db.Column(db.String(255), nullable=False) 
 
 class Discussion_Thread(db.Model):
     __tablename__ = 'discussion_thread'  
@@ -67,13 +82,6 @@ class Discussion_Thread(db.Model):
     forum_id = db.Column(db.Integer, db.ForeignKey('forum.forum_id'))
     created_by = db.Column(db.Integer, db.ForeignKey('user.userid'))
 
-class Comment_Thread(db.Model):
-    __tablename__ = 'comment_thread' 
-    comment_id = db.Column(db.Integer, primary_key=True)
-    thread_id = db.Column(db.Integer, db.ForeignKey('discussion_thread.thread_id'))
-    commenter_id = db.Column(db.Integer, db.ForeignKey('user.userid'))
-    comment_text = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, server_default=func.now())
 
 class Thread_Reply(db.Model):
     __tablename__ = 'thread_reply'  
@@ -331,18 +339,15 @@ def get_course_members(course_id):
 def create_event():
     data = request.json
 
-    # Ensure the required fields are provided
     if not all(field in data for field in ['event_title', 'event_date', 'course_id']):
         return jsonify({'message': 'Missing required fields'}), 400
     
-    # Check if the course exists
     sql = text("SELECT * FROM course WHERE course_id = :course_id")
     course = db.session.execute(sql, {'course_id': data['course_id']}).fetchone()
     
     if not course:
         return jsonify({'message': 'Course not found'}), 404
     
-    # Insert the new event into the calendar_event table
     sql = text("INSERT INTO calendar_event (event_title, event_date, course_id) VALUES (:event_title, :event_date, :course_id)")
     db.session.execute(sql, {
         'event_title': data['event_title'],
@@ -417,24 +422,138 @@ def add_reply(thread_id):
     return jsonify({'message': 'Reply added'})
 
 
-# ---------------------- Course Content ---------------------- #
+# Course Content
+
+
+# Use the following command below to create a section for testing
+
+# INSERT INTO section (section_id, section_title, course_id)
+# VALUES (1, 'Week 1 - Introduction', 1);
+
+# There is no requirement to add a section endpoint so I didn't want to complicate things
+# Could've added it as a property but I think making it a table is a better design choice
+
 
 @app.route('/content/<int:course_id>', methods=['GET', 'POST'])
 def course_content(course_id):
+    
+    userid = request.json.get('userid')
+
+    if not userid:
+        return jsonify({'error': 'User ID is required'}), 400
+
+    lecturer_sql = text("""
+        SELECT lecturer_id 
+        FROM course 
+        WHERE course_id = :course_id
+    """)
+    lecturer_id = db.session.execute(lecturer_sql, {'course_id': course_id}).scalar()
+
+    if lecturer_id != userid:
+        return jsonify({'error': 'Unauthorized. Only the lecturer of this course can add content.'}), 403
+
     if request.method == 'GET':
-        sql = text("SELECT content_title, content_body FROM course_content WHERE course_id = :course_id")
-        result = db.session.execute(sql, {'course_id': course_id}).fetchall()
-        return jsonify([{'content_title': row['content_title'], 'content_body': row['content_body']} for row in result])
+        sql = text("""
+            SELECT content_title, content_url, content_type, section_id 
+            FROM course_content 
+            WHERE course_id = :course_id
+        """)
+        result = db.session.execute(sql, {'course_id': course_id}).mappings().fetchall()
+        return jsonify([{
+            'content_title': row['content_title'],
+            'content_url': row['content_url'],
+            'content_type': row['content_type'],
+            'section_id': row['section_id']
+        } for row in result])
 
     data = request.json
-    sql = text("INSERT INTO course_content (content_title, content_body, course_id) VALUES (:content_title, :content_body, :course_id)")
+    section_check_sql = text("""
+        SELECT COUNT(*) 
+        FROM section 
+        WHERE section_id = :section_id
+    """)
+    section_exists = db.session.execute(section_check_sql, {'section_id': data['section_id']}).scalar()
+
+    if section_exists == 0:
+        return jsonify({'error': f"Section with ID {data['section_id']} does not exist."}), 400
+
+    sql = text("""
+        INSERT INTO course_content (content_title, content_url, content_type, section_id, course_id) 
+        VALUES (:content_title, :content_url, :content_type, :section_id, :course_id)
+    """)
     db.session.execute(sql, {
         'content_title': data['content_title'],
-        'content_body': data['content_body'],
+        'content_url': data['content_url'],
+        'content_type': data['content_type'],
+        'section_id': data['section_id'],
         'course_id': course_id
     })
     db.session.commit()
     return jsonify({'message': 'Course content added'})
+
+# Assignments
+
+# Use the SQL command below to add an assignment
+# INSERT INTO assignment (course_id, title, description, due_date)
+# VALUES (1, 'Midterm Project', 'Build a web app', '2025-05-01 23:59:00');
+
+
+@app.route('/assignment/<int:assign_id>/submit', methods=['POST'])
+def submit_assignment(assign_id):
+    student_id = request.json.get('student_id') 
+    submission_url = request.json.get('submission_url')  
+
+    assignment = db.session.query(Assignment).filter_by(assign_id=assign_id).first()
+    if not assignment:
+        return jsonify({'error': 'Assignment not found'}), 404
+
+    course_id = assignment.course_id
+    enrollment_sql = text("""
+        SELECT 1 FROM course_registration
+        WHERE stud_id = :student_id AND course_id = :course_id
+    """)
+    enrolled = db.session.execute(enrollment_sql, {'student_id': student_id, 'course_id': course_id}).fetchone()
+
+    if not enrolled:
+        return jsonify({'error': 'Student not enrolled in this course.'}), 403
+
+    submission = Submission(
+        assign_id=assign_id,
+        stud_id=student_id,
+        submission_url=submission_url
+    )
+    db.session.add(submission)
+    db.session.commit()
+    return jsonify({'message': 'Assignment submitted successfully.'}), 201
+
+@app.route('/assignment/<int:assign_id>/grade', methods=['POST'])
+def grade_assignment(assign_id):
+    lecturer_id = request.json.get('lecturer_id')  
+    student_id = request.json.get('student_id')    
+    grade = request.json.get('grade')             
+
+
+    lecturer_sql = text("""SELECT lecturer_id FROM course WHERE course_id = :course_id""")
+    course_id = db.session.query(Assignment).filter_by(assign_id=assign_id).first().course_id
+    course_lecturer = db.session.execute(lecturer_sql, {'course_id': course_id}).scalar()
+
+    if lecturer_id != course_lecturer:
+        return jsonify({'error': 'Unauthorized. Only the lecturer of this course can grade assignments.'}), 403
+
+  
+    submission = db.session.query(Submission).filter_by(assign_id=assign_id, stud_id=student_id).first()
+    if not submission:
+        return jsonify({'error': 'Submission not found'}), 404
+
+    if submission.grade is not None:
+        return jsonify({'error': 'Assignment already graded'}), 400
+
+    # Update the grade
+    submission.grade = grade
+    db.session.commit()
+
+    return jsonify({'message': 'Grade submitted successfully.'}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)

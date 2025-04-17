@@ -62,23 +62,14 @@ CREATE TABLE IF NOT EXISTS Discussion_Thread (
     created_by INT
 );
 
-CREATE TABLE IF NOT EXISTS Comment_Thread (
-    comment_id INT AUTO_INCREMENT PRIMARY KEY,
-    thread_id INT,
-    commenter_id INT,
-    comment_text TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS Thread_Reply (
     reply_id INT AUTO_INCREMENT PRIMARY KEY,
-    comment_id INT,
+    thread_id INT,
     user_id INT,
     reply_text TEXT,
     replied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     parent_reply_id INT DEFAULT NULL
 );
-
 
 
 

@@ -4,6 +4,8 @@ from sqlalchemy import func, text
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 load_dotenv()
 
@@ -92,15 +94,13 @@ class Thread_Reply(db.Model):
     replied_at = db.Column(db.DateTime, server_default=func.now())
 
 
-# Register User
-
 @app.route('/register', methods=['POST'])
 def register():
     data = request.json
 
     if not all(field in data for field in ['password', 'role', 'name']):
         return jsonify({'message': 'Missing required fields'}), 400
-    
+
     if data['role'] not in ['student', 'lecturer', 'admin']:
         return jsonify({'message': 'Invalid role. Must be student, lecturer, or admin'}), 400
 
@@ -111,23 +111,25 @@ def register():
         return jsonify({'message': 'User already exists'}), 400
 
     try:
+        hashed_password = generate_password_hash(data['password'])
+
         sql = text("INSERT INTO user (password, role, name, email) VALUES (:password, :role, :name, :email)")
         db.session.execute(sql, {
-            'password': data.get('password'),
-            'role': data.get('role'),
-            'name': data.get('name'),
+            'password': hashed_password,
+            'role': data['role'],
+            'name': data['name'],
             'email': data.get('email', '')
         })
         db.session.commit()
 
         last_inserted_id = db.session.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
 
-        return jsonify({ 
-            'message': 'User registered successfully', 
+        return jsonify({
+            'message': 'User registered successfully',
             'user': {
-                'userid': last_inserted_id,  
-                'name': data.get('name'),
-                'role': data.get('role'),
+                'userid': last_inserted_id,
+                'name': data['name'],
+                'role': data['role'],
                 'email': data.get('email', '')
             }
         })
@@ -137,8 +139,6 @@ def register():
         return jsonify({'message': 'Registration failed', 'error': str(e)}), 500
 
 
-# User Login
-
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -147,16 +147,16 @@ def login():
         return jsonify({'message': 'User ID and password are required'}), 400
 
     try:
-        sql = text("SELECT * FROM user WHERE userid = :userid AND password = :password")
-        user = db.session.execute(sql, {'userid': data['userid'], 'password': data['password']}).fetchone()
+        sql = text("SELECT * FROM user WHERE userid = :userid")
+        user = db.session.execute(sql, {'userid': data['userid']}).fetchone()
 
-        if user:
-            return jsonify({'message': 'Login successful', 'role': user[2]})  
+        if user and check_password_hash(user['password'], data['password']):
+            return jsonify({'message': 'Login successful', 'role': user['role']})
+
         return jsonify({'message': 'Invalid credentials'}), 401
 
     except Exception as e:
         return jsonify({'message': 'An error occurred during login', 'error': str(e)}), 500
-
 
 # Create Course
 

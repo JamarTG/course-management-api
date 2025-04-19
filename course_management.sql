@@ -127,3 +127,64 @@ ADD FOREIGN KEY (parent_reply_id) REFERENCES Thread_Reply(reply_id);
 
 ALTER TABLE Section 
 ADD FOREIGN KEY (course_id) REFERENCES Course(course_id)
+
+
+CREATE OR REPLACE VIEW Courses_With_50_Or_More_Students AS
+SELECT 
+    c.course_id,
+    c.course_name,
+    COUNT(cr.stud_id) AS student_count
+FROM Course c
+JOIN Course_Registration cr ON c.course_id = cr.course_id
+GROUP BY c.course_id, c.course_name
+HAVING COUNT(cr.stud_id) >= 50;
+
+
+CREATE OR REPLACE VIEW Students_With_5_Or_More_Courses AS
+SELECT 
+    u.userid,
+    u.name,
+    COUNT(cr.course_id) AS course_count
+FROM User u
+JOIN Course_Registration cr ON u.userid = cr.stud_id
+WHERE u.role = 'student'
+GROUP BY u.userid, u.name
+HAVING COUNT(cr.course_id) >= 5;
+
+
+CREATE OR REPLACE VIEW Lecturers_With_3_Or_More_Courses AS
+SELECT 
+    u.userid,
+    u.name,
+    COUNT(c.course_id) AS course_count
+FROM User u
+JOIN Course c ON u.userid = c.lecturer_id
+WHERE u.role = 'lecturer'
+GROUP BY u.userid, u.name
+HAVING COUNT(c.course_id) >= 3;
+
+
+CREATE OR REPLACE VIEW Top_10_Most_Enrolled_Courses AS
+SELECT 
+    c.course_id,
+    c.course_name,
+    COUNT(cr.stud_id) AS student_count
+FROM Course c
+JOIN Course_Registration cr ON c.course_id = cr.course_id
+GROUP BY c.course_id, c.course_name
+ORDER BY student_count DESC
+LIMIT 10;
+
+
+CREATE OR REPLACE VIEW Top_10_Students_By_Grade AS
+SELECT 
+    u.userid,
+    u.name,
+    ROUND(AVG(s.grade), 2) AS average_grade
+FROM User u
+JOIN Submission s ON u.userid = s.stud_id
+WHERE u.role = 'student'
+GROUP BY u.userid, u.name
+HAVING COUNT(s.grade) > 0
+ORDER BY average_grade DESC
+LIMIT 10;

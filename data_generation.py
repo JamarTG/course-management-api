@@ -4,7 +4,7 @@ from collections import defaultdict
 
 NUM_ADMINS = 3
 NUM_LECTURERS = 40
-NUM_STUDENTS = 400
+NUM_STUDENTS = 400 # will be changed to 10,000 later
 NUM_COURSES = 200
 MIN_COURSES_PER_STUDENT = 3
 MAX_COURSES_PER_STUDENT = 6
@@ -73,5 +73,12 @@ if __name__ == "__main__":
             for cid in additional_courses:
                 course_registrations[sid].add(cid)
                 f.write(f"INSERT INTO Course_Registration(stud_id, course_id) VALUES ({sid}, {cid});\n")
+
+        # Append the section and assignment for course_id = 1
+        f.write("\n-- SECTION FOR COURSE 1\n")
+        f.write("INSERT INTO Section (section_id, section_title, course_id) VALUES (1, 'Week 1 - Introduction', 1);\n")
+        
+        f.write("\n-- ASSIGNMENT FOR COURSE 1\n")
+        f.write("INSERT INTO Assignment (course_id, title, description, due_date) VALUES (1, 'Midterm Project', 'Build a web app', '2025-05-01 23:59:00');\n")
 
         print("file generated successfully")

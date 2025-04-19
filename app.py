@@ -7,6 +7,9 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
+# course_registration should be id not stud_id
+# number of students should be 10,000
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -150,8 +153,14 @@ def login():
         sql = text("SELECT * FROM user WHERE userid = :userid")
         user = db.session.execute(sql, {'userid': data['userid']}).fetchone()
 
-        if user and check_password_hash(user['password'], data['password']):
-            return jsonify({'message': 'Login successful', 'role': user['role']})
+        if not user:
+            return jsonify({'message': 'Invalid credentials'}), 401
+
+        if check_password_hash(user.password, data['password']):  
+            return jsonify({
+                'message': 'Login successful',
+                'role': user.role  
+            })
 
         return jsonify({'message': 'Invalid credentials'}), 401
 
@@ -163,21 +172,24 @@ def login():
 @app.route('/courses', methods=['POST'])
 def create_course():
     data = request.json
-    
+
     sql = text("SELECT * FROM user WHERE userid = :userid")
     admin = db.session.execute(sql, {'userid': data['userid']}).fetchone()
     if not admin or admin[2] != 'admin':  
         return jsonify({'message': 'Only admins can create courses'}), 403
-    
-    sql = text("SELECT * FROM user WHERE userid = :lecturer_id")
-    lecturer = db.session.execute(sql, {'lecturer_id': data['lecturer_id']}).fetchone()
-    if not lecturer or lecturer[2] != 'lecturer': 
-        return jsonify({'message': 'Invalid lecturer. Please provide a valid user with a lecturer role.'}), 400
+
+    lecturer_id = data.get('lecturer_id')
+
+    if lecturer_id is not None:
+        sql = text("SELECT * FROM user WHERE userid = :lecturer_id")
+        lecturer = db.session.execute(sql, {'lecturer_id': lecturer_id}).fetchone()
+        if not lecturer or lecturer[2] != 'lecturer': 
+            return jsonify({'message': 'Invalid lecturer. Please provide a valid user with a lecturer role.'}), 400
 
     sql = text("INSERT INTO course (course_name, lecturer_id) VALUES (:course_name, :lecturer_id)")
     db.session.execute(sql, {
         'course_name': data['course_name'],
-        'lecturer_id': data['lecturer_id']
+        'lecturer_id': lecturer_id
     })
     db.session.commit()
 
@@ -185,6 +197,7 @@ def create_course():
     course_id = db.session.execute(sql).fetchone()[0]
 
     return jsonify({'message': 'Course created', 'course_id': course_id})
+
 
 # Retrieve Courses
 
@@ -274,7 +287,7 @@ def register_lecturer():
     if not user:
         return jsonify({'message': 'User not found'}), 404
     
-    if user[2] != 'lecturer':  # Assuming the role is at index 2
+    if user[2] != 'lecturer':
         return jsonify({'message': 'Only lecturers can register for courses'}), 403
     
     sql = text("SELECT * FROM course WHERE course_id = :course_id")
@@ -282,12 +295,13 @@ def register_lecturer():
     
     if not course:
         return jsonify({'message': 'Course not found'}), 404
-    
-    sql = text("INSERT INTO course_registration (stud_id, course_id) VALUES (:lecturer_id, :course_id)")
+
+    sql = text("UPDATE course SET lecturer_id = :lecturer_id WHERE course_id = :course_id")
     db.session.execute(sql, {'lecturer_id': data['lecturer_id'], 'course_id': data['course_id']})
     db.session.commit()
     
     return jsonify({'message': 'Lecturer successfully registered for the course'})
+
 
 
 # Retrieve Members
@@ -300,37 +314,39 @@ def get_course_members(course_id):
     if not course:
         return jsonify({'message': 'Course not found'}), 404
     
-    lecturer_id = course[2]
-    sql = text("SELECT userid, name, email FROM user WHERE userid = :lecturer_id")
-    lecturer = db.session.execute(sql, {'lecturer_id': lecturer_id}).fetchone()
-    
-    if not lecturer:
-        return jsonify({'message': 'Lecturer not found'}), 404
-    
-    sql = text("SELECT stud_id FROM course_registration WHERE course_id = :course_id")
-    students = db.session.execute(sql, {'course_id': course_id}).fetchall()
-    
-    student_list = []
-    for student in students:
-        sql = text("SELECT userid, name, email FROM user WHERE userid = :stud_id")
-        student_data = db.session.execute(sql, {'stud_id': student[0]}).fetchone()
-        
-        if student_data:
-            student_list.append({
-                'student_id': student_data[0],
-                'name': student_data[1],
-                'email': student_data[2]
-            })
-    
-    return jsonify({
-        'message': 'Course members retrieved successfully',
-        'lecturer': {
+    lecturer_info = None
+    students = []
+
+    sql = text("SELECT userid, name, email, role FROM user WHERE userid = :lecturer_id")
+    lecturer = db.session.execute(sql, {'lecturer_id': course[2]}).fetchone()
+
+    if lecturer and lecturer[3] == 'lecturer':
+        lecturer_info = {
             'lecturer_id': lecturer[0],
             'name': lecturer[1],
             'email': lecturer[2]
-        },
-        'students': student_list
+        }
+
+    sql = text("SELECT stud_id FROM course_registration WHERE course_id = :course_id")
+    members = db.session.execute(sql, {'course_id': course_id}).fetchall()
+    
+    for member in members:
+        sql = text("SELECT userid, name, email, role FROM user WHERE userid = :user_id")
+        user = db.session.execute(sql, {'user_id': member[0]}).fetchone()
+        
+        if user and user[3] == 'student':
+            students.append({
+                'student_id': user[0],
+                'name': user[1],
+                'email': user[2]
+            })
+
+    return jsonify({
+        'message': 'Course members retrieved successfully',
+        'lecturer': lecturer_info,
+        'students': students
     })
+
 
 # Create Calendar Events
 
@@ -436,60 +452,77 @@ def add_reply(thread_id):
 
 @app.route('/content/<int:course_id>', methods=['GET', 'POST'])
 def course_content(course_id):
-    
-    userid = request.json.get('userid')
-
-    if not userid:
-        return jsonify({'error': 'User ID is required'}), 400
-
-    lecturer_sql = text("""
-        SELECT lecturer_id 
-        FROM course 
-        WHERE course_id = :course_id
-    """)
-    lecturer_id = db.session.execute(lecturer_sql, {'course_id': course_id}).scalar()
-
-    if lecturer_id != userid:
-        return jsonify({'error': 'Unauthorized. Only the lecturer of this course can add content.'}), 403
-
+  
     if request.method == 'GET':
-        sql = text("""
-            SELECT content_title, content_url, content_type, section_id 
-            FROM course_content 
-            WHERE course_id = :course_id
-        """)
-        result = db.session.execute(sql, {'course_id': course_id}).mappings().fetchall()
-        return jsonify([{
-            'content_title': row['content_title'],
-            'content_url': row['content_url'],
-            'content_type': row['content_type'],
-            'section_id': row['section_id']
-        } for row in result])
+        try:
+            sql = text("""
+                SELECT content_title, content_url, content_type, section_id 
+                FROM course_content 
+                WHERE course_id = :course_id
+            """)
+            result = db.session.execute(sql, {'course_id': course_id}).mappings().fetchall()
+       
+            if not result:
+                return jsonify({'message': 'No content found for this course'}), 404
 
-    data = request.json
-    section_check_sql = text("""
-        SELECT COUNT(*) 
-        FROM section 
-        WHERE section_id = :section_id
-    """)
-    section_exists = db.session.execute(section_check_sql, {'section_id': data['section_id']}).scalar()
+           
+            return jsonify([{
+                'content_title': row['content_title'],
+                'content_url': row['content_url'],
+                'content_type': row['content_type'],
+                'section_id': row['section_id']
+            } for row in result])
 
-    if section_exists == 0:
-        return jsonify({'error': f"Section with ID {data['section_id']} does not exist."}), 400
+        except Exception as e:
+            return jsonify({'error': f'Error fetching course content: {str(e)}'}), 500
 
-    sql = text("""
-        INSERT INTO course_content (content_title, content_url, content_type, section_id, course_id) 
-        VALUES (:content_title, :content_url, :content_type, :section_id, :course_id)
-    """)
-    db.session.execute(sql, {
-        'content_title': data['content_title'],
-        'content_url': data['content_url'],
-        'content_type': data['content_type'],
-        'section_id': data['section_id'],
-        'course_id': course_id
-    })
-    db.session.commit()
-    return jsonify({'message': 'Course content added'})
+    if request.method == 'POST':
+
+        userid = request.json.get('userid')
+        if not userid:
+            return jsonify({'error': 'User ID is required'}), 400
+
+        try:
+            lecturer_sql = text("""
+                SELECT lecturer_id 
+                FROM course 
+                WHERE course_id = :course_id
+            """)
+            lecturer_id = db.session.execute(lecturer_sql, {'course_id': course_id}).scalar()
+
+            if lecturer_id != userid:
+                return jsonify({'error': 'Unauthorized. Only the lecturer of this course can add content.'}), 403
+
+            data = request.json
+            section_check_sql = text("""
+                SELECT COUNT(*) 
+                FROM section 
+                WHERE section_id = :section_id
+            """)
+            section_exists = db.session.execute(section_check_sql, {'section_id': data['section_id']}).scalar()
+
+            if section_exists == 0:
+                return jsonify({'error': f"Section with ID {data['section_id']} does not exist."}), 400
+
+            sql = text("""
+                INSERT INTO course_content (content_title, content_url, content_type, section_id, course_id) 
+                VALUES (:content_title, :content_url, :content_type, :section_id, :course_id)
+            """)
+            db.session.execute(sql, {
+                'content_title': data['content_title'],
+                'content_url': data['content_url'],
+                'content_type': data['content_type'],
+                'section_id': data['section_id'],
+                'course_id': course_id
+            })
+            db.session.commit()
+
+            return jsonify({'message': 'Course content added'})
+
+        except Exception as e:
+
+            return jsonify({'error': f'Error adding course content: {str(e)}'}), 500
+
 
 # Assignments
 

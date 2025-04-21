@@ -1,0 +1,634 @@
+{
+	"info": {
+		"_postman_id": "cc3df37c-5f7e-4fb0-9932-0bf1dff1ed10",
+		"name": "final_project",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "24635472"
+	},
+	"item": [
+		{
+			"name": "Registering User",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "// {\r\n//     \"name\": \"Theo Adam\",\r\n//     \"password\": \"password123\",\r\n//     \"role\": \"admin\",\r\n//     \"email\": \"theoadam@gmail.com\"\r\n// }\r\n\r\n// {\r\n//     \"name\": \"Jamari McFarlane\",\r\n//     \"password\": \"password123\",\r\n//     \"role\": \"student\",\r\n//     \"email\": \"jamarimcfarlane12@gmail.com\"\r\n// }\r\n\r\n{\r\n    \"name\": \"Matthew Stone\",\r\n    \"password\": \"password123\",\r\n    \"role\": \"lecturer\",\r\n    \"email\": \"matthewstone@gmail.com\"\r\n}\r\n\r\n\r\n\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/register",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Logging In User",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"userid\": 444, // ADMIN user created upon registering - think of this as a studentid\r\n    \"password\": \"password123\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/login",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Creating a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"userid\": 444,               // Using the same admin user to create a course\r\n    \"lecturer_id\": 446, // using the lecturer created          \r\n    \"course_name\": \"COMP3161\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/courses",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"courses"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieving All Courses",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/courses",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"courses"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieving Courses for Student",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/courses/student/44",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"courses",
+						"student",
+						"44"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Retrieving Courses For Lecturer",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/courses/lecturer/4",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"courses",
+						"lecturer",
+						"4"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Registering a Student for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"stud_id\": 445, // student user created at \"Registering User\" \r\n  \"course_id\": 201 // course created at \"Creating a Course\"\r\n}\r\n\r\n// Needed later for assignment endpoint because the sample assignment is attached to course with id of 1\r\n// {\r\n//   \"stud_id\": 445, // student user created at \"Registering User\" \r\n//   \"course_id\": 1 // course created at \"Creating a Course\"\r\n// }\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/register-student",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"register-student"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Registering a Lecturer for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"lecturer_id\": 446, // lecturer user created at \"Registering User\" \r\n  \"course_id\": 201 // course created at \"Creating a Course\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/register-lecturer",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"register-lecturer"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Members For a Course(Student + Lecturer))",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/course-members/201",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"course-members",
+						"201"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Calendar Event for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"event_title\": \"Midterm Review Session\",\r\n  \"event_date\": \"2025-04-25 10:00:00\",\r\n  \"course_id\": 201\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/calendar",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"calendar"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Forum for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"forum_title\": \"Final Project Discussion\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/forum/201",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"forum",
+						"201"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Fetch Forums for a Course",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/forum/201",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"forum",
+						"201"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Add Thread to a Forum",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"dis_title\": \"Assignment 2 Clarification\",\r\n  \"created_by\": 445 // this is me\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/threads/1",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"threads",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Viewing Threads for a Forum",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/threads/1",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"threads",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "User Replying to a Thread",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"user_id\": 446, //This is Matthew Stone replying\r\n  \"reply_text\": \"Get back to work you slave\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/threads/1/replies",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"threads",
+						"1",
+						"replies"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Adding Content for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"userid\": 446, //Must be a lecturer - this is Matthew Stone\r\n  \"content_title\": \"Transaction Management\",\r\n  \"content_url\": \"https://youtube.com/MlnsbjXy\",\r\n  \"content_type\": \"link\",\r\n  \"section_id\": 1 //only section created\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/content/201",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"content",
+						"201"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Getting Content for a Course",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:5000/content/201",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"content",
+						"201"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Submitting Assignment as a Student",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"student_id\": 445,\r\n  \"submission_url\": \"https://drive.google.com/your-assignment-link\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/assignment/1/submit",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"assignment",
+						"1",
+						"submit"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Grading Assignment as a Lecturer",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"lecturer_id\": 25, //Must be the lecturer of this course\r\n  \"student_id\": 445, //Must be the student of this course\r\n  \"grade\": 89.5\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:5000/assignment/1/grade",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"assignment",
+						"1",
+						"grade"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

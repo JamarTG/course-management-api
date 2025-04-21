@@ -4,7 +4,7 @@ from collections import defaultdict
 
 NUM_ADMINS = 3
 NUM_LECTURERS = 40
-NUM_STUDENTS = 400 # will be changed to 10,000 later
+NUM_STUDENTS = 100,000 
 NUM_COURSES = 200
 MIN_COURSES_PER_STUDENT = 3
 MAX_COURSES_PER_STUDENT = 6

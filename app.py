@@ -7,8 +7,7 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-# course_registration should be id not stud_id
-# number of students should be 10,000
+# course_registration should be id not stud_id since it stores both students and 
 
 load_dotenv()
 

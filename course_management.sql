@@ -1,5 +1,3 @@
--- Make the properties not null
-
 CREATE DATABASE IF NOT EXISTS course_management;
 USE course_management;
 

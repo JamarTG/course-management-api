@@ -180,8 +180,7 @@ def register_course():
     
     if not course:
         return jsonify({'message': 'Course not found'}), 404
-    
-    # Check if student is already registered for the course
+  
     sql = text("""
         SELECT COUNT(*) FROM course_registration 
         WHERE stud_id = :stud_id AND course_id = :course_id
@@ -244,8 +243,7 @@ def get_course_members(course_id):
     lecturer_info = None
     students = []
 
-    # Fetch lecturer information
-    if course[2]:  # If lecturer_id is not null
+    if course[2]:  
         sql = text("SELECT userid, name, email, role FROM user WHERE userid = :lecturer_id")
         lecturer = db.session.execute(sql, {'lecturer_id': course[2]}).fetchone()
 
@@ -360,7 +358,6 @@ def forum(course_id):
         result = db.session.execute(sql, {'course_id': course_id}).fetchall()
         return jsonify([{'forum_id': row[0], 'forum_title': row[1]} for row in result])
 
-    # POST method
     data = request.json
     forum_title = data.get('forum_title')
 
@@ -393,7 +390,6 @@ def threads(forum_id):
             'creator_name': row[3]
         } for row in result])
 
-    # POST method
     data = request.json
     if not all(field in data for field in ['dis_title', 'created_by']):
         return jsonify({'error': 'Discussion title and creator ID are required'}), 400
@@ -438,7 +434,6 @@ def thread_replies(thread_id):
             'replied_at': reply[4].isoformat() if reply[4] else None
         } for reply in replies])
     
-    # POST method
     data = request.json
     if not all(field in data for field in ['user_id', 'reply_text']):
         return jsonify({'error': 'User ID and reply text are required'}), 400
@@ -501,7 +496,6 @@ def course_content(course_id):
         except Exception as e:
             return jsonify({'error': f'Error fetching course content: {str(e)}'}), 500
 
-    # POST method
     userid = request.json.get('userid')
     if not userid:
         return jsonify({'error': 'User ID is required'}), 400
@@ -521,7 +515,7 @@ def course_content(course_id):
         if not all(field in data for field in ['content_title', 'content_url', 'content_type', 'section_id']):
             return jsonify({'error': 'Missing required fields'}), 400
 
-        # Sectin can be added here but it wasn't part of the requirements
+        # Section code could've  been added here but it wasn't part of the requirements
       
         sql = text("""
             INSERT INTO course_content 
@@ -570,14 +564,12 @@ def assignments(course_id):
         
         return jsonify({'assignments': assignment_list})
     
-    # POST method (create new assignment)
     data = request.json
     lecturer_id = data.get('lecturer_id')
     
     if not lecturer_id:
         return jsonify({'error': 'Lecturer ID is required'}), 400
     
-    # Check if lecturer is assigned to the course
     sql = text("SELECT lecturer_id FROM course WHERE course_id = :course_id")
     course_lecturer = db.session.execute(sql, {'course_id': course_id}).scalar()
     
@@ -615,8 +607,7 @@ def submit_assignment(assign_id):
     
     if not student_id or not submission_url:
         return jsonify({'error': 'Student ID and submission URL are required'}), 400
-    
-    # Check if assignment exists
+
     sql = text("SELECT course_id FROM assignment WHERE assign_id = :assign_id")
     assignment = db.session.execute(sql, {'assign_id': assign_id}).fetchone()
     
@@ -625,7 +616,6 @@ def submit_assignment(assign_id):
     
     course_id = assignment[0]
     
-    # Check if student is enrolled in the course
     sql = text("""
         SELECT 1 FROM course_registration
         WHERE stud_id = :student_id AND course_id = :course_id
@@ -635,7 +625,6 @@ def submit_assignment(assign_id):
     if not enrolled:
         return jsonify({'error': 'Student not enrolled in this course.'}), 403
     
-    # Check if student has already submitted this assignment
     sql = text("""
         SELECT 1 FROM submission
         WHERE assign_id = :assign_id AND stud_id = :student_id
@@ -675,7 +664,6 @@ def grade_assignment(assign_id):
     if not all([lecturer_id, student_id, grade is not None]):
         return jsonify({'error': 'Lecturer ID, student ID, and grade are required'}), 400
     
-    # Check if lecturer is assigned to the course
     sql = text("""
         SELECT c.lecturer_id 
         FROM assignment a
@@ -687,7 +675,6 @@ def grade_assignment(assign_id):
     if course_lecturer != lecturer_id:
         return jsonify({'error': 'Unauthorized. Only the lecturer of this course can grade assignments.'}), 403
     
-    # Check if submission exists
     sql = text("""
         SELECT grade FROM submission
         WHERE assign_id = :assign_id AND stud_id = :student_id
@@ -702,8 +689,7 @@ def grade_assignment(assign_id):
     
     if submission[0] is not None:
         return jsonify({'error': 'Assignment already graded'}), 400
-    
-    # Update the grade
+
     sql = text("""
         UPDATE submission
         SET grade = :grade
@@ -739,7 +725,6 @@ def sections(course_id):
         
         return jsonify({'sections': section_list})
     
-    # POST method
     data = request.json
     lecturer_id = data.get('lecturer_id')
     section_title = data.get('section_title')
@@ -747,7 +732,6 @@ def sections(course_id):
     if not lecturer_id or not section_title:
         return jsonify({'error': 'Lecturer ID and section title are required'}), 400
     
-    # Check if lecturer is assigned to the course
     sql = text("SELECT lecturer_id FROM course WHERE course_id = :course_id")
     course_lecturer = db.session.execute(sql, {'course_id': course_id}).scalar()
     
